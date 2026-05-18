@@ -7,6 +7,7 @@ import webbrowser
 import ctypes
 import platform
 import urllib.request
+import subprocess
 from io import BytesIO
 from zipfile import ZipFile
 import tkinter as tk
@@ -14,7 +15,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.3"
+CURRENT_VERSION = "v1.0.4"
 
 try:
     if platform.system() == "Windows":
@@ -48,12 +49,14 @@ class VideoDownloaderGUI:
         self.root.resizable(False, False)
         
         self.style = ttk.Style()
+      
         self.themes = {
             "light": {
                 "bg": "#f0f0f0", "fg": "#000000", "frame_bg": "#f0f0f0",
                 "entry_bg": "#ffffff", "entry_fg": "#000000", "accent": "#333333",
                 "link": "#0066cc", "title_bar": 0x00F0F0F0, "progress_bar": "#000000"
             },
+        
             "dark": {
                 "bg": "#1e1e1e", "fg": "#ffffff", "frame_bg": "#1e1e1e",
                 "entry_bg": "#2d2d2d", "entry_fg": "#ffffff", "accent": "#aaaaaa",
@@ -105,7 +108,7 @@ class VideoDownloaderGUI:
                     final_img = Image.merge("RGBA", (*inverted_rgb.split(), a))
                 else:
                     final_img = img
-                    
+                 
                 self.tk_icon = ImageTk.PhotoImage(final_img)
                 if platform.system() == "Windows":
                     self.root.wm_iconphoto(False, self.tk_icon)
@@ -143,7 +146,6 @@ class VideoDownloaderGUI:
                 target_tag = data.get("tag_name", "")
                 
                 if target_tag and target_tag != CURRENT_VERSION:
-                    # Look for executable asset, fallback to zip archive if not found
                     assets = data.get("assets", [])
                     if assets:
                         for asset in assets:
@@ -189,7 +191,6 @@ class VideoDownloaderGUI:
             temp_dir = os.path.dirname(CONFIG_FILE)
             new_executable_path = os.path.join(temp_dir, "Clipper_update_temp" + (".exe" if platform.system() == "Windows" else ""))
             
-            # Save downloaded file data
             if download_url.endswith(".zip"):
                 with ZipFile(buffer) as zip_file:
                     for member in zip_file.namelist():
@@ -204,18 +205,21 @@ class VideoDownloaderGUI:
             if platform.system() != "Windows":
                 os.chmod(new_executable_path, 0o755)
 
-            # Execution script to replace running binary and hot-restart cleanly
             if platform.system() == "Windows":
-                batch_script_path = os.path.join(temp_dir, "updater.bat")
+                batch_script_path = os.path.join(os.environ.get("TEMP", temp_dir), "clipper_updater.bat")
                 with open(batch_script_path, "w") as f:
                     f.write(f'@echo off\n'
-                            f'timeout /t 1 /nobreak > nul\n'
+                            f':wait\n'
+                            f'tasklist | findstr /i "{os.path.basename(current_executable)}" >nul\n'
+                            f'if %errorlevel% equ 0 (\n'
+                            f'    timeout /t 1 /nobreak >nul\n'
+                            f'    goto wait\n'
+                            f')\n'
                             f'move /y "{new_executable_path}" "{current_executable}"\n'
                             f'start "" "{current_executable}"\n'
                             f'del "%~f0"\n')
-                os.startfile(batch_script_path)
+                subprocess.Popen(["cmd.exe", "/c", batch_script_path], creationflags=subprocess.CREATE_NO_WINDOW)
             else:
-                import subprocess
                 shell_script_path = os.path.join(temp_dir, "updater.sh")
                 with open(shell_script_path, "w") as f:
                     f.write(f'#!/bin/sh\n'
@@ -228,7 +232,6 @@ class VideoDownloaderGUI:
                 
             self.root.after(0, lambda: self.root.destroy())
         except Exception:
-            # Fallback configuration if background installation encounters an explicit failure
             self.root.after(0, self.verify_local_environment)
 
     def verify_local_environment(self):
@@ -434,7 +437,7 @@ class VideoDownloaderGUI:
                 
         self.update_windows_title_bar(info_win, colors["title_bar"])
         
-        tk.Label(info_win, text="🪶 Clipper Resources", font=("Arial", 10, "bold"), bg=colors["bg"], fg=colors["fg"]).pack(pady=(12, 6))
+        tk.Label(info_win, text="Clipper Resources", font=("Arial", 10, "bold"), bg=colors["bg"], fg=colors["fg"]).pack(pady=(12, 6))
         
         row1 = tk.Frame(info_win, bg=colors["bg"])
         row1.pack(pady=2)
@@ -460,7 +463,8 @@ class VideoDownloaderGUI:
         tk.Frame(credits_frame, height=1, width=240, bg=colors["accent"]).pack(pady=(0, 5))
         tk.Label(credits_frame, text="Credits:", font=("Arial", 8, "bold"), bg=colors["bg"], fg=colors["fg"]).pack()
         tk.Label(credits_frame, text="etx.rain & common.ui", font=("Arial", 9, "italic"), bg=colors["bg"], fg=colors["fg"]).pack()
-
+        tk.Label(credits_frame, text="saltie (bug testing)", font=("Arial", 9, "italic"), bg=colors["bg"], fg=colors["fg"]).pack()
+        
         list_container = tk.Frame(info_win, bg=colors["entry_bg"], bd=1, relief="solid")
         list_container.pack(padx=25, pady=5, fill="both", expand=True)
         
@@ -577,7 +581,7 @@ class VideoDownloaderGUI:
         self.audio_var = tk.BooleanVar(value=self.saved_settings.get("audio_on", False))
         self.audio_chk = tk.Checkbutton(options_frame, text="Audio", variable=self.audio_var, command=self.toggle_states)
         self.audio_chk.grid(row=1, column=0, sticky="w", pady=4)
-        
+      
         self.a_qual_var = tk.StringVar(value=self.saved_settings.get("audio_quality", "320kbps"))
         a_options = ["320kbps", "256kbps", "192kbps", "128kbps", "96kbps"]
         self.a_qual_combo = ttk.Combobox(options_frame, textvariable=self.a_qual_var, values=a_options, width=12, state="readonly")
@@ -607,7 +611,7 @@ class VideoDownloaderGUI:
 
         self.download_btn = ttk.Button(self.main_frame, text="Download", command=self.start_download_thread, width=28)
         self.download_btn.pack(pady=(12, 2))
-        
+         
         self.toggle_states()
 
     def load_settings(self):
@@ -617,6 +621,7 @@ class VideoDownloaderGUI:
             "audio_quality": "320kbps", "gif_on": False, "gif_quality": "480p", 
             "always_best": False, "download_directory": default_dir, "theme_mode": "light"
         }
+    
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r") as f:
@@ -642,7 +647,7 @@ class VideoDownloaderGUI:
             with open(CONFIG_FILE, "w") as f:
                 json.dump(settings, f)
         except:
-            pass
+             pass
 
     def browse_directory(self):
         selected = filedialog.askdirectory(initialdir=self.dir_var.get())
@@ -683,7 +688,12 @@ class VideoDownloaderGUI:
 
     def process_batch_download(self, url):
         target_dir = self.dir_var.get()
-        base_opts = {'outtmpl': os.path.join(target_dir, '%(title)s.%(ext)s'), 'quiet': True, 'no_warnings': True}
+        base_opts = {
+            'outtmpl': os.path.join(target_dir, '%(title)s.%(ext)s'), 
+            'quiet': True, 
+            'no_warnings': True,
+            'nocheckcertificate': True
+        }
         
         if not (shutil.which(FFMPEG_BINARY) and shutil.which(FFPROBE_BINARY)):
             base_opts['ffmpeg_location'] = FFMPEG_DIR
