@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.6b"
+CURRENT_VERSION = "v1.0.6c"
 
 try:
     if platform.system() == "Windows":
@@ -213,17 +213,18 @@ class VideoDownloaderGUI:
                 batch_script_path = os.path.join(os.environ.get("TEMP", temp_dir), "clipper_updater.bat")
                 with open(batch_script_path, "w") as f:
                     f.write(f'@echo off\n'
+                            f'timeout /t 1 /nobreak >nul\n'
                             f':wait\n'
                             f'tasklist | findstr /i "{os.path.basename(current_executable)}" >nul\n'
                             f'if %errorlevel% equ 0 (\n'
+                            f'    taskkill /f /im "{os.path.basename(current_executable)}" >nul 2>&1\n'
                             f'    timeout /t 1 /nobreak >nul\n'
                             f'    goto wait\n'
                             f')\n'
-                            f'move /y "{new_executable_path}" "{current_executable}"\n'
+                            f'move /y "{new_executable_path}" "{current_executable}" >nul\n'
                             f'start "" "{current_executable}"\n'
                             f'del "%~f0"\n')
                 
-                # The Fix: Isolated process invocation prevents PyInstaller tree inheritance errors
                 subprocess.Popen(
                     f'cmd.exe /c start /b "" "{batch_script_path}"', 
                     shell=True, 
@@ -415,10 +416,8 @@ class VideoDownloaderGUI:
         self.footer_frame.pack_propagate(False)
         self.footer_frame.config(height=30)
         
-       
         self.info_btn = tk.Button(self.footer_frame, text="Info", font=("Arial", 9), borderwidth=0, cursor="hand2", command=self.open_info_window)
         self.info_btn.pack(side="left", padx=5)
-        
         
         theme_container = tk.Frame(self.footer_frame, width=30, height=30)
         theme_container.pack(side="right", padx=5)
@@ -427,7 +426,6 @@ class VideoDownloaderGUI:
         self.theme_btn = tk.Button(theme_container, text="☀️", font=("Arial", 11), borderwidth=0, cursor="hand2", command=self.toggle_theme)
         self.theme_btn.pack(fill="both", expand=True)
 
-        
         self.version_lbl = tk.Label(self.footer_frame, text=CURRENT_VERSION, font=("Arial", 9, "italic"))
         self.version_lbl.pack(side="bottom", pady=5)
 
