@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.6c"
+CURRENT_VERSION = "v1.0.6d"
 
 try:
     if platform.system() == "Windows":
