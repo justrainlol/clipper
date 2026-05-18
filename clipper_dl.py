@@ -14,7 +14,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.2"
+CURRENT_VERSION = "v1.0.3"
 
 try:
     if platform.system() == "Windows":
@@ -234,7 +234,7 @@ class VideoDownloaderGUI:
     def verify_local_environment(self):
         system_has_ffmpeg = False
         try:
-            if shutil.who(FFMPEG_BINARY) and shutil.who(FFPROBE_BINARY):
+            if shutil.which(FFMPEG_BINARY) and shutil.which(FFPROBE_BINARY):
                 system_has_ffmpeg = True
         except Exception:
             pass
@@ -685,7 +685,7 @@ class VideoDownloaderGUI:
         target_dir = self.dir_var.get()
         base_opts = {'outtmpl': os.path.join(target_dir, '%(title)s.%(ext)s'), 'quiet': True, 'no_warnings': True}
         
-        if not (shutil.who(FFMPEG_BINARY) and shutil.who(FFPROBE_BINARY)):
+        if not (shutil.which(FFMPEG_BINARY) and shutil.which(FFPROBE_BINARY)):
             base_opts['ffmpeg_location'] = FFMPEG_DIR
             
         is_best = self.best_var.get()
