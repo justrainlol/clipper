@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.5"
+CURRENT_VERSION = "v1.0.6"
 
 try:
     if platform.system() == "Windows":
@@ -50,7 +50,7 @@ class VideoDownloaderGUI:
         self.root.resizable(False, False)
         
         self.style = ttk.Style()
-      
+        
         self.themes = {
             "light": {
                 "bg": "#f0f0f0", "fg": "#000000", "frame_bg": "#f0f0f0",
@@ -108,7 +108,7 @@ class VideoDownloaderGUI:
                     final_img = Image.merge("RGBA", (*inverted_rgb.split(), a))
                 else:
                     final_img = img
-                 
+                
                 self.tk_icon = ImageTk.PhotoImage(final_img)
                 if platform.system() == "Windows":
                     self.root.wm_iconphoto(False, self.tk_icon)
@@ -222,7 +222,13 @@ class VideoDownloaderGUI:
                             f'move /y "{new_executable_path}" "{current_executable}"\n'
                             f'start "" "{current_executable}"\n'
                             f'del "%~f0"\n')
-                subprocess.Popen(["cmd.exe", "/c", batch_script_path], creationflags=subprocess.CREATE_NO_WINDOW)
+                
+                # The Fix: Isolated process invocation prevents PyInstaller tree inheritance errors
+                subprocess.Popen(
+                    f'cmd.exe /c start /b "" "{batch_script_path}"', 
+                    shell=True, 
+                    creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
+                )
             else:
                 shell_script_path = os.path.join(temp_dir, "updater.sh")
                 with open(shell_script_path, "w") as f:
