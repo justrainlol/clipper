@@ -27,12 +27,12 @@ jobs:
 
     - name: Compile Executable with PyInstaller
       run: |
-        pyinstaller --onefile --noconsole --name="clipper" --icon="app_icon.ico" --add-data "app_icon.ico;." clipper_dl.py
+        pyinstaller --onefile --noconsole --name="clipper-win-x86-64" --icon="app_icon.ico" --add-data "app_icon.ico;." clipper_dl.py
 
     - name: Create GitHub Release and Upload Windows Asset
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/clipper.exe
+        files: dist/clipper-win-x86-64.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,11 +57,11 @@ jobs:
 
     - name: Compile Native Linux Binary with PyInstaller
       run: |
-        pyinstaller --onefile --noconsole --name="clipper" --add-data "app_icon.ico:." clipper_dl.py
+        pyinstaller --onefile --noconsole --name="clipper-linux-x86-64" --add-data "app_icon.ico:." clipper_dl.py
 
     - name: Upload Linux Asset to Existing Release
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/clipper
+        files: dist/clipper-linux-x86-64
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
