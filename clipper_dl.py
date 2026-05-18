@@ -8,6 +8,7 @@ import ctypes
 import platform
 import urllib.request
 import subprocess
+import tarfile
 from io import BytesIO
 from zipfile import ZipFile
 import tkinter as tk
@@ -15,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.4"
+CURRENT_VERSION = "v1.0.5"
 
 try:
     if platform.system() == "Windows":
@@ -56,7 +57,6 @@ class VideoDownloaderGUI:
                 "entry_bg": "#ffffff", "entry_fg": "#000000", "accent": "#333333",
                 "link": "#0066cc", "title_bar": 0x00F0F0F0, "progress_bar": "#000000"
             },
-        
             "dark": {
                 "bg": "#1e1e1e", "fg": "#ffffff", "frame_bg": "#1e1e1e",
                 "entry_bg": "#2d2d2d", "entry_fg": "#ffffff", "accent": "#aaaaaa",
@@ -149,10 +149,14 @@ class VideoDownloaderGUI:
                     assets = data.get("assets", [])
                     if assets:
                         for asset in assets:
-                            if asset.get("name", "").endswith(".exe") or asset.get("name", "").endswith(".zip"):
+                            asset_name = asset.get("name", "")
+                            if platform.system() == "Windows" and "win" in asset_name:
                                 update_target_url = asset.get("browser_download_url")
                                 break
-                        if not update_target_url:
+                            elif platform.system() != "Windows" and "linux" in asset_name:
+                                update_target_url = asset.get("browser_download_url")
+                                break
+                        if not update_target_url and assets:
                             update_target_url = assets[0].get("browser_download_url")
                     else:
                         update_target_url = data.get("zipball_url")
@@ -194,7 +198,7 @@ class VideoDownloaderGUI:
             if download_url.endswith(".zip"):
                 with ZipFile(buffer) as zip_file:
                     for member in zip_file.namelist():
-                        if member.endswith(".exe") or (not member.endswith("/") and platform.system() != "Windows"):
+                        if "win" in member or member.endswith(".exe"):
                             with zip_file.open(member) as source, open(new_executable_path, "wb") as target:
                                 target.write(source.read())
                             break
@@ -225,6 +229,7 @@ class VideoDownloaderGUI:
                     f.write(f'#!/bin/sh\n'
                             f'sleep 1\n'
                             f'cp -f "{new_executable_path}" "{current_executable}"\n'
+                            f'chmod +x "{current_executable}"\n'
                             f'"{current_executable}" &\n'
                             f'rm -- "$0"\n')
                 os.chmod(shell_script_path, 0o755)
@@ -437,7 +442,7 @@ class VideoDownloaderGUI:
                 
         self.update_windows_title_bar(info_win, colors["title_bar"])
         
-        tk.Label(info_win, text="Clipper Resources", font=("Arial", 10, "bold"), bg=colors["bg"], fg=colors["fg"]).pack(pady=(12, 6))
+        tk.Label(info_win, text="🪶 Clipper Resources", font=("Arial", 10, "bold"), bg=colors["bg"], fg=colors["fg"]).pack(pady=(12, 6))
         
         row1 = tk.Frame(info_win, bg=colors["bg"])
         row1.pack(pady=2)
@@ -463,8 +468,7 @@ class VideoDownloaderGUI:
         tk.Frame(credits_frame, height=1, width=240, bg=colors["accent"]).pack(pady=(0, 5))
         tk.Label(credits_frame, text="Credits:", font=("Arial", 8, "bold"), bg=colors["bg"], fg=colors["fg"]).pack()
         tk.Label(credits_frame, text="etx.rain & common.ui", font=("Arial", 9, "italic"), bg=colors["bg"], fg=colors["fg"]).pack()
-        tk.Label(credits_frame, text="saltie (bug testing)", font=("Arial", 9, "italic"), bg=colors["bg"], fg=colors["fg"]).pack()
-        
+
         list_container = tk.Frame(info_win, bg=colors["entry_bg"], bd=1, relief="solid")
         list_container.pack(padx=25, pady=5, fill="both", expand=True)
         
@@ -538,7 +542,6 @@ class VideoDownloaderGUI:
                             with zip_file.open(member) as source, open(os.path.join(FFMPEG_DIR, filename), "wb") as target:
                                 target.write(source.read())
             else:
-                import tarfile
                 with tarfile.open(fileobj=buffer, mode="r:xz") as tar_file:
                     for member in tar_file.getmembers():
                         filename = os.path.basename(member.name)
