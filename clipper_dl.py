@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.6a"
+CURRENT_VERSION = "v1.0.6b"
 
 try:
     if platform.system() == "Windows":
@@ -415,8 +415,10 @@ class VideoDownloaderGUI:
         self.footer_frame.pack_propagate(False)
         self.footer_frame.config(height=30)
         
+       
         self.info_btn = tk.Button(self.footer_frame, text="Info", font=("Arial", 9), borderwidth=0, cursor="hand2", command=self.open_info_window)
         self.info_btn.pack(side="left", padx=5)
+        
         
         theme_container = tk.Frame(self.footer_frame, width=30, height=30)
         theme_container.pack(side="right", padx=5)
@@ -424,6 +426,10 @@ class VideoDownloaderGUI:
         
         self.theme_btn = tk.Button(theme_container, text="☀️", font=("Arial", 11), borderwidth=0, cursor="hand2", command=self.toggle_theme)
         self.theme_btn.pack(fill="both", expand=True)
+
+        
+        self.version_lbl = tk.Label(self.footer_frame, text=CURRENT_VERSION, font=("Arial", 9, "italic"))
+        self.version_lbl.pack(side="bottom", pady=5)
 
     def open_info_window(self):
         info_win = tk.Toplevel(self.root)
