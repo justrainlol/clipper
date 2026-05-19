@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.7a"
+CURRENT_VERSION = "v1.0.7b"
 
 try:
     if platform.system() == "Windows":
@@ -201,12 +201,11 @@ class VideoDownloaderGUI:
             
             buffer.seek(0)
             current_executable = os.path.abspath(sys.argv[0])
+            current_exe_name = os.path.basename(current_executable)
             temp_dir = os.path.dirname(CONFIG_FILE)
             new_executable_path = os.path.join(temp_dir, "Clipper_update_temp" + (".exe" if platform.system() == "Windows" else ""))
             
             self.log_update(f"Downloaded {bytes_so_far} bytes to buffer")
-            self.log_update(f"Current executable: {current_executable}")
-            self.log_update(f"New executable path: {new_executable_path}")
             
             if download_url.endswith(".zip"):
                 with ZipFile(buffer) as zip_file:
@@ -223,39 +222,34 @@ class VideoDownloaderGUI:
                     
             if platform.system() != "Windows":
                 os.chmod(new_executable_path, 0o755)
-                self.log_update(f"Set executable permissions on: {new_executable_path}")
 
             if os.path.getsize(new_executable_path) < 1000000:
-                self.log_update(f"ERROR: Downloaded file too small: {os.path.getsize(new_executable_path)} bytes")
+                self.log_update(f"ERROR: Downloaded file too small")
                 raise Exception("Downloaded executable is too small")
 
             if platform.system() == "Windows":
                 batch_script_path = os.path.join(os.environ.get("TEMP", temp_dir), "clipper_updater.bat")
+                
                 with open(batch_script_path, "w") as f:
                     f.write(f'@echo off\n'
-                            f'setlocal enabledelayedexpansion\n'
                             f'timeout /t 2 /nobreak >nul\n'
                             f':wait_loop\n'
-                            f'tasklist /FI "IMAGENAME eq {os.path.basename(current_executable)}" 2>NUL | find /I /N "{os.path.basename(current_executable)}" >NUL\n'
-                            f'if !ERRORLEVEL! equ 0 (\n'
+                            f'tasklist /nh /fi "imagename eq {current_exe_name}" | findstr /i "{current_exe_name}" >nul\n'
+                            f'if %errorlevel% equ 0 (\n'
                             f'    timeout /t 1 /nobreak >nul\n'
                             f'    goto wait_loop\n'
                             f')\n'
-                            f'timeout /t 1 /nobreak >nul\n'
                             f'if exist "{new_executable_path}" (\n'
                             f'    move /y "{new_executable_path}" "{current_executable}" >nul 2>&1\n'
-                            f'    if !ERRORLEVEL! neq 0 (\n'
-                            f'        del /f /q "{new_executable_path}" >nul 2>&1\n'
-                            f'    )\n'
                             f')\n'
                             f'start "" "{current_executable}"\n'
                             f'del /f /q "%~f0" >nul 2>&1\n')
                 
                 self.log_update(f"Created batch script: {batch_script_path}")
                 subprocess.Popen(
-                    batch_script_path, 
+                    f'cmd.exe /c "{batch_script_path}"',
                     shell=True,
-                    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE
                 )
                 self.log_update("Launched batch script with DETACHED_PROCESS")
             else:
@@ -276,15 +270,13 @@ class VideoDownloaderGUI:
                             f'fi\n'
                             f'rm -f -- "$0"\n')
                 os.chmod(shell_script_path, 0o755)
-                self.log_update(f"Created shell script: {shell_script_path}")
                 subprocess.Popen(["nohup", "/bin/bash", shell_script_path], 
-                                stdout=subprocess.DEVNULL, 
-                                stderr=subprocess.DEVNULL,
-                                start_new_session=True)
-                self.log_update("Launched shell script with nohup")
+                                 stdout=subprocess.DEVNULL, 
+                                 stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
                 
             self.root.after(0, lambda: self.root.destroy())
-            self.log_update("Update process completed successfully")
+            self.log_update("Update process handed off successfully")
         except Exception as e:
             self.log_update(f"ERROR during update: {str(e)}")
             self.root.after(0, self.verify_local_environment)
@@ -517,7 +509,7 @@ class VideoDownloaderGUI:
         
         credits_frame = tk.Frame(info_win, bg=colors["bg"])
         credits_frame.pack(side="bottom", fill="x", pady=(5, 10))
-        
+         
         tk.Frame(credits_frame, height=1, width=240, bg=colors["accent"]).pack(pady=(0, 5))
         tk.Label(credits_frame, text="Credits:", font=("Arial", 8, "bold"), bg=colors["bg"], fg=colors["fg"]).pack()
         tk.Label(credits_frame, text="etx.rain & common.ui", font=("Arial", 9, "italic"), bg=colors["bg"], fg=colors["fg"]).pack()
@@ -546,7 +538,7 @@ class VideoDownloaderGUI:
             canvas.unbind_all("<MouseWheel>")
             info_win.destroy()
         info_win.protocol("WM_DELETE_WINDOW", clean_close)
-        
+         
         platforms = [
             "YouTube & YouTube Shorts", "Twitch (Clips & VODs)", "TikTok Videos", 
             "Twitter / X Media", "Instagram Reels & Posts", "Reddit Video Links", 
@@ -586,7 +578,7 @@ class VideoDownloaderGUI:
                         self.root.after(0, lambda p=percent: self.update_progress_bar_custom(self.progress_canvas, p))
             
             buffer.seek(0)
-            
+             
             if FFMPEG_URL.endswith(".zip"):
                 with ZipFile(buffer) as zip_file:
                     for member in zip_file.namelist():
@@ -684,6 +676,7 @@ class VideoDownloaderGUI:
                     self.saved_settings.update(json.load(f))
             except:
                 pass
+         
         self.dir_var = tk.StringVar(value=self.saved_settings.get("download_directory", default_dir))
         self.theme_var = tk.StringVar(value=self.saved_settings.get("theme_mode", "light"))
 
@@ -753,7 +746,7 @@ class VideoDownloaderGUI:
         
         if not (shutil.which(FFMPEG_BINARY) and shutil.which(FFPROBE_BINARY)):
             base_opts['ffmpeg_location'] = FFMPEG_DIR
-            
+             
         is_best = self.best_var.get()
         
         try:
