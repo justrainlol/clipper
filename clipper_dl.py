@@ -16,7 +16,7 @@ from tkinter import ttk, filedialog
 from yt_dlp import YoutubeDL
 from PIL import Image, ImageOps, ImageTk
 
-CURRENT_VERSION = "v1.0.6d"
+CURRENT_VERSION = "v1.0.7"
 
 try:
     if platform.system() == "Windows":
@@ -26,6 +26,7 @@ except Exception:
     pass
 
 CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".clipper_dl_config.json")
+UPDATE_LOG_FILE = os.path.join(os.path.expanduser("~"), ".clipper_update_log.txt")
 
 if platform.system() == "Windows":
     FFMPEG_DIR = "C:\\ytdl"
@@ -132,6 +133,13 @@ class VideoDownloaderGUI:
         except Exception:
             pass
 
+    def log_update(self, message):
+        try:
+            with open(UPDATE_LOG_FILE, "a") as f:
+                f.write(f"{message}\n")
+        except:
+            pass
+
     def run_startup_checks(self):
         threading.Thread(target=self.check_updates_and_environment, daemon=True).start()
 
@@ -173,6 +181,7 @@ class VideoDownloaderGUI:
 
     def download_and_install_update(self, download_url):
         try:
+            self.log_update(f"Starting update download from: {download_url}")
             req = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
@@ -195,55 +204,89 @@ class VideoDownloaderGUI:
             temp_dir = os.path.dirname(CONFIG_FILE)
             new_executable_path = os.path.join(temp_dir, "Clipper_update_temp" + (".exe" if platform.system() == "Windows" else ""))
             
+            self.log_update(f"Downloaded {bytes_so_far} bytes to buffer")
+            self.log_update(f"Current executable: {current_executable}")
+            self.log_update(f"New executable path: {new_executable_path}")
+            
             if download_url.endswith(".zip"):
                 with ZipFile(buffer) as zip_file:
                     for member in zip_file.namelist():
                         if "win" in member or member.endswith(".exe"):
                             with zip_file.open(member) as source, open(new_executable_path, "wb") as target:
                                 target.write(source.read())
+                            self.log_update(f"Extracted from zip: {member}")
                             break
             else:
                 with open(new_executable_path, "wb") as target:
                     target.write(buffer.read())
+                self.log_update(f"Wrote binary file: {new_executable_path}")
                     
             if platform.system() != "Windows":
                 os.chmod(new_executable_path, 0o755)
+                self.log_update(f"Set executable permissions on: {new_executable_path}")
+
+            if os.path.getsize(new_executable_path) < 1000000:
+                self.log_update(f"ERROR: Downloaded file too small: {os.path.getsize(new_executable_path)} bytes")
+                raise Exception("Downloaded executable is too small")
 
             if platform.system() == "Windows":
                 batch_script_path = os.path.join(os.environ.get("TEMP", temp_dir), "clipper_updater.bat")
                 with open(batch_script_path, "w") as f:
                     f.write(f'@echo off\n'
-                            f'timeout /t 1 /nobreak >nul\n'
-                            f':wait\n'
-                            f'tasklist | findstr /i "{os.path.basename(current_executable)}" >nul\n'
-                            f'if %errorlevel% equ 0 (\n'
-                            f'    taskkill /f /im "{os.path.basename(current_executable)}" >nul 2>&1\n'
+                            f'setlocal enabledelayedexpansion\n'
+                            f'timeout /t 2 /nobreak >nul\n'
+                            f':wait_loop\n'
+                            f'tasklist /FI "IMAGENAME eq {os.path.basename(current_executable)}" 2>NUL | find /I /N "{os.path.basename(current_executable)}" >NUL\n'
+                            f'if !ERRORLEVEL! equ 0 (\n'
                             f'    timeout /t 1 /nobreak >nul\n'
-                            f'    goto wait\n'
+                            f'    goto wait_loop\n'
                             f')\n'
-                            f'move /y "{new_executable_path}" "{current_executable}" >nul\n'
+                            f'timeout /t 1 /nobreak >nul\n'
+                            f'if exist "{new_executable_path}" (\n'
+                            f'    move /y "{new_executable_path}" "{current_executable}" >nul 2>&1\n'
+                            f'    if !ERRORLEVEL! neq 0 (\n'
+                            f'        del /f /q "{new_executable_path}" >nul 2>&1\n'
+                            f'    )\n'
+                            f')\n'
                             f'start "" "{current_executable}"\n'
-                            f'del "%~f0"\n')
+                            f'del /f /q "%~f0" >nul 2>&1\n')
                 
+                self.log_update(f"Created batch script: {batch_script_path}")
                 subprocess.Popen(
-                    f'cmd.exe /c start /b "" "{batch_script_path}"', 
-                    shell=True, 
-                    creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
+                    batch_script_path, 
+                    shell=True,
+                    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
                 )
+                self.log_update("Launched batch script with DETACHED_PROCESS")
             else:
                 shell_script_path = os.path.join(temp_dir, "updater.sh")
                 with open(shell_script_path, "w") as f:
-                    f.write(f'#!/bin/sh\n'
-                            f'sleep 1\n'
-                            f'cp -f "{new_executable_path}" "{current_executable}"\n'
-                            f'chmod +x "{current_executable}"\n'
-                            f'"{current_executable}" &\n'
-                            f'rm -- "$0"\n')
+                    f.write(f'#!/bin/bash\n'
+                            f'sleep 2\n'
+                            f'if [ -f "{new_executable_path}" ]; then\n'
+                            f'    if cp -f "{new_executable_path}" "{current_executable}" 2>/dev/null; then\n'
+                            f'        chmod +x "{current_executable}"\n'
+                            f'        rm -f "{new_executable_path}"\n'
+                            f'    else\n'
+                            f'        rm -f "{new_executable_path}"\n'
+                            f'    fi\n'
+                            f'fi\n'
+                            f'if [ -x "{current_executable}" ]; then\n'
+                            f'    nohup "{current_executable}" >/dev/null 2>&1 &\n'
+                            f'fi\n'
+                            f'rm -f -- "$0"\n')
                 os.chmod(shell_script_path, 0o755)
-                subprocess.Popen(["/bin/sh", shell_script_path], start_new_session=True)
+                self.log_update(f"Created shell script: {shell_script_path}")
+                subprocess.Popen(["nohup", "/bin/bash", shell_script_path], 
+                                stdout=subprocess.DEVNULL, 
+                                stderr=subprocess.DEVNULL,
+                                start_new_session=True)
+                self.log_update("Launched shell script with nohup")
                 
             self.root.after(0, lambda: self.root.destroy())
-        except Exception:
+            self.log_update("Update process completed successfully")
+        except Exception as e:
+            self.log_update(f"ERROR during update: {str(e)}")
             self.root.after(0, self.verify_local_environment)
 
     def verify_local_environment(self):
